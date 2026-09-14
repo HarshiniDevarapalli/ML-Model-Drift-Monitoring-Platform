@@ -2,7 +2,7 @@
 
 Local Python project for monitoring a customer-churn classifier after a simulated deployment. The focus is **model monitoring**—data quality, statistical drift, prediction shift, and performance degradation—not winning a leaderboard.
 
-This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), **Milestone 3** (a baseline Random Forest), **Milestone 4** (reference-data artifacts), and **Milestone 5** (controlled production-data simulation). Drift detection, alerts, and monitoring plots are not implemented yet.
+This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), **Milestone 3** (a baseline Random Forest), **Milestone 4** (reference-data artifacts), **Milestone 5** (controlled production-data simulation), and **Milestone 6** (data-quality monitoring). Feature/prediction drift, performance monitoring, alerts, and monitoring plots are not implemented yet.
 
 ## Problem statement
 
@@ -31,12 +31,14 @@ ML-Model-Drift-Monitoring-Platform/
 │   ├── preprocessing.py     # cleaning, feature groups, unfitted sklearn pipeline
 │   ├── train.py             # baseline training, evaluation, persistence
 │   ├── reference.py         # training-data reference artifacts for monitoring
-│   └── simulation.py        # reproducible production-data scenarios
+│   ├── simulation.py        # reproducible production-data scenarios
+│   └── data_quality.py      # independent production-data quality reports
 ├── tests/
 │   ├── test_preprocessing.py
 │   ├── test_train.py
 │   ├── test_reference.py
-│   └── test_simulation.py
+│   ├── test_simulation.py
+│   └── test_data_quality.py
 ├── pytest.ini
 ├── requirements.txt
 ├── .gitignore
@@ -214,6 +216,29 @@ These scenarios represent distinct concepts. **Data drift** changes input distri
 
 The CLI validates schema and row count after generation and prints the intended change. For example, with 200 rows and seed 42, the numerical-drift scenario changes mean `MonthlyCharges` from $64.93 in the reference to $95.86; categorical drift produces an 80% Month-to-month share; and missing-values produces 20% missingness in each selected column. These are simulation validations, not drift-detection results.
 
+## Data-quality monitoring (Milestone 6)
+
+Data quality is the validation gate before any future drift analysis: it asks whether an incoming batch is structurally valid, complete, and meaningful enough to interpret. It does **not** ask whether valid values have changed distribution relative to the reference—that is feature drift and is not implemented yet. The quality monitor is independent of the future drift monitor:
+
+```text
+Production batch → data-quality report
+Production batch → future drift report
+```
+
+Run a report against a generated batch:
+
+```bash
+python -m src.data_quality --batch results/production/healthy_batch.csv
+```
+
+Reports are saved locally under `results/data_quality/` (gitignored). They include overall `PASS`, `WARNING`, or `FAIL` status plus separate schema, missingness, duplicate, categorical-value, numeric-validity, range, and semantic-data-type checks. The monitor observes its input and does not reorder, drop, encode, or otherwise change the batch.
+
+The project-example thresholds are centralized in `QualityThresholds`: 5% maximum per-feature missingness, 1% maximum exact duplicate rows, and 0% tolerance for unexpected categories or non-numeric/non-finite numeric values. A rate above the reference baseline but within threshold is a warning; exceeding threshold is a failure. These values are deliberately conservative examples and require calibration for a real system.
+
+Range constraints are limited to clear physical/domain rules: `tenure`, `MonthlyCharges`, and `TotalCharges` may not be negative. No arbitrary upper bounds are applied. Expected categorical levels come directly from the cleaned reference artifact, so valid service values remain valid while the simulator's `Satellite` category is reported as unexpected.
+
+With the generated 200-row examples (seed 42), the healthy batch returns `PASS`; the missing-values batch returns `FAIL` because `MonthlyCharges` and `Contract` each have 20% missingness; and the invalid-values batch returns `FAIL` with 10 unexpected `Satellite` values and 10 negative monthly charges. These are quality-check results, not drift-detection results.
+
 ## How to run
 
 ```bash
@@ -239,4 +264,4 @@ python -m pytest
 
 ## Future improvements (not started)
 
-Data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
+Numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
