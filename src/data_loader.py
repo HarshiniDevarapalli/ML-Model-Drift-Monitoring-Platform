@@ -1,4 +1,4 @@
-"""Download the IBM Telco Customer Churn dataset into data/raw/."""
+"""Load the IBM Telco Customer Churn dataset from data/raw/."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
@@ -37,6 +39,12 @@ def download_raw_dataset(
             check=True,
         )
     return destination
+
+
+def load_raw_dataframe(path: Path | None = None) -> pd.DataFrame:
+    """Load the raw CSV without cleaning or type coercion beyond pandas defaults."""
+    csv_path = path or download_raw_dataset()
+    return pd.read_csv(csv_path)
 
 
 if __name__ == "__main__":
