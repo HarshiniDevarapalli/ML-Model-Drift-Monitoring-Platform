@@ -2,7 +2,7 @@
 
 Local Python project for monitoring a customer-churn classifier after a simulated deployment. The focus is **model monitoring**—data quality, statistical drift, prediction shift, and performance degradation—not winning a leaderboard.
 
-This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), and **Milestone 3** (a baseline Random Forest). Drift detection, production simulation, alerts, and monitoring plots are not implemented yet.
+This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), **Milestone 3** (a baseline Random Forest), and **Milestone 4** (reference-data artifacts). Drift detection, production simulation, alerts, and monitoring plots are not implemented yet.
 
 ## Problem statement
 
@@ -28,11 +28,13 @@ ML-Model-Drift-Monitoring-Platform/
 ├── src/
 │   ├── __init__.py
 │   ├── data_loader.py       # download + load raw CSV
-│   └── preprocessing.py     # cleaning, feature groups, unfitted sklearn pipeline
-│   └── train.py             # baseline training, evaluation, persistence
+│   ├── preprocessing.py     # cleaning, feature groups, unfitted sklearn pipeline
+│   ├── train.py             # baseline training, evaluation, persistence
+│   └── reference.py         # training-data reference artifacts for monitoring
 ├── tests/
-│   └── test_preprocessing.py
-│   └── test_train.py
+│   ├── test_preprocessing.py
+│   ├── test_train.py
+│   └── test_reference.py
 ├── pytest.ini
 ├── requirements.txt
 ├── .gitignore
@@ -164,6 +166,28 @@ python -m src.train
 
 This saves `models/churn_random_forest.joblib`. Reload it with joblib and pass it the cleaned model-feature frame produced by `clean_raw_dataframe()` and `split_features_target()`; this retains the exact preprocessing learned from training for future inference.
 
+## Reference baseline (Milestone 4)
+
+In this project, **reference data** means the cleaned, semantic feature representation from the same 5,634 rows used to train the baseline model. It contains the 19 model features before one-hot encoding: `TotalCharges` remains numeric and categorical values remain meaningful labels such as contract and payment-method names. It excludes `customerID` and `Churn`, so future monitoring can compare feature distributions without identifiers or outcome leakage. The aligned `Churn` values are stored separately for a future performance-monitoring step.
+
+The 1,409 held-out test rows are deliberately not part of the reference dataset. They measured baseline model quality in Milestone 3; the reference describes the normal environment on which the preprocessing and model were developed. Future simulated production batches will be compared to this reference, not to the test set.
+
+Run reference generation after training:
+
+```bash
+python -m src.reference
+```
+
+It creates local, reproducible artifacts under `results/reference/` (these derived files are gitignored):
+
+- `reference_data.csv` — 5,634 semantic feature rows.
+- `reference_targets.csv` — separately aligned churn labels.
+- `reference_statistics.json` — numeric count/missingness, mean, standard deviation, median, range, and selected quantiles; categorical unique counts, frequencies, proportions, and missingness.
+- `reference_prediction_statistics.json` — normal predicted-class distribution and positive-class probability summary. The baseline predicts churn for 1,492 / 5,634 reference rows (26.48%); mean churn probability is 26.75%.
+- `baseline_metadata.json` — model identity and seed, feature lists, reference/training row counts, and the Milestone 3 held-out metrics.
+
+These files establish data and prediction baselines only. No drift or data-quality detection is implemented yet.
+
 ## How to run
 
 ```bash
@@ -189,4 +213,4 @@ python -m pytest
 
 ## Future improvements (not started)
 
-Reference-set creation, production simulation, data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
+Production simulation, data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
