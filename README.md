@@ -2,7 +2,7 @@
 
 Local Python project for monitoring a customer-churn classifier after a simulated deployment. The focus is **model monitoring**—data quality, statistical drift, prediction shift, and performance degradation—not winning a leaderboard.
 
-This repository currently includes **Milestone 1** (structure and dataset download) and **Milestone 2** (exploration and a reusable preprocessing pipeline). The Random Forest, drift detectors, simulation, alerts, and monitoring plots are not implemented yet.
+This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), and **Milestone 3** (a baseline Random Forest). Drift detection, production simulation, alerts, and monitoring plots are not implemented yet.
 
 ## Problem statement
 
@@ -21,16 +21,18 @@ ML-Model-Drift-Monitoring-Platform/
 ├── data/
 │   ├── raw/                 # downloaded Telco churn CSV (gitignored)
 │   └── processed/           # quality-cleaned CSV from python -m src.preprocessing
-├── models/                  # later: saved Random Forest
+├── models/                  # local saved pipeline: churn_random_forest.joblib
 ├── notebooks/
 │   └── 01_data_exploration.ipynb
-├── results/                 # later: figures and monitoring reports
+├── results/                 # local metrics, confusion matrix, importances
 ├── src/
 │   ├── __init__.py
 │   ├── data_loader.py       # download + load raw CSV
 │   └── preprocessing.py     # cleaning, feature groups, unfitted sklearn pipeline
+│   └── train.py             # baseline training, evaluation, persistence
 ├── tests/
 │   └── test_preprocessing.py
+│   └── test_train.py
 ├── pytest.ini
 ├── requirements.txt
 ├── .gitignore
@@ -120,7 +122,7 @@ Exact duplicate rows: **0**. Duplicate `customerID`: **0**. No de-duplication is
 2. **Sklearn pipeline** (`build_preprocessor`): an **unfitted** `ColumnTransformer`.
    - Numerical: median imputation only. **No scaling** — the planned model is Random Forest, which does not need standardized inputs.
    - Categorical: constant imputer (`missing`) then `OneHotEncoder(handle_unknown="ignore")` so new category levels in production do not crash transform.
-3. **Splits** (`split_train_val_test`): stratified 60/20/20 (`random_state=42`). Training code in a later milestone must call `preprocessor.fit(X_train)` only.
+3. **Splits** (`split_train_val_test`): offers a stratified 60/20/20 helper (`random_state=42`). The Milestone 3 baseline uses its own stratified 80/20 train/test split and fits preprocessing on its training portion only.
 
 Ordinal integer encodings are not used for unordered categoricals (`Contract` looks ordered, but one-hot avoids imposing a linear scale the forest does not need).
 
@@ -136,9 +138,31 @@ Imputers and one-hot category sets are **statistics learned from data**. If they
 
 Row-wise cleaning (parsing `TotalCharges`, mapping `Churn`) does not use other rows' statistics, so it may run before the split.
 
-## Machine learning model (planned)
+## Baseline model (Milestone 3)
 
-Random Forest classifier (scikit-learn) predicting `Churn`. Not trained in this milestone.
+The baseline is a scikit-learn `RandomForestClassifier` with 300 trees, `random_state=42`, and no class weighting or resampling. It is a sensible, low-maintenance baseline for a mixed numerical/categorical tabular problem and does not require feature scaling.
+
+The evaluation uses a reproducible, stratified 80/20 train/test split (`random_state=42`): 5,634 training rows and 1,409 held-out test rows. The saved object is one `Pipeline` containing the Milestone 2 `ColumnTransformer` followed by the Random Forest. Calling `pipeline.fit(X_train, y_train)` ensures imputation statistics and one-hot category levels are learned only from training data.
+
+### Held-out baseline performance
+
+| Metric | Value |
+| --- | ---: |
+| Accuracy | 0.7821 |
+| Precision | 0.6151 |
+| Recall | 0.4786 |
+| F1 | 0.5383 |
+| ROC-AUC | 0.8200 |
+
+Metrics are calculated on the held-out test set, not on training data. ROC-AUC is solid for this simple baseline, while the 0.4786 recall shows that it misses a meaningful share of churners; this is an appropriate baseline to monitor rather than an optimized final classifier. See `results/model_metrics.json`, `results/confusion_matrix.png`, `results/feature_importances.csv`, and `results/feature_importances.png` after running training. The importance table refers to transformed (including one-hot encoded) features; it is useful for a simple baseline inspection, not a causal explanation.
+
+Run the baseline:
+
+```bash
+python -m src.train
+```
+
+This saves `models/churn_random_forest.joblib`. Reload it with joblib and pass it the cleaned model-feature frame produced by `clean_raw_dataframe()` and `split_features_target()`; this retains the exact preprocessing learned from training for future inference.
 
 ## How to run
 
@@ -148,6 +172,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python -m src.data_loader
 python -m src.preprocessing
+python -m src.train
 ```
 
 Exploration notebook:
@@ -164,4 +189,4 @@ python -m pytest
 
 ## Future improvements (not started)
 
-Random Forest training, reference-set creation, production simulation, data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
+Reference-set creation, production simulation, data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
