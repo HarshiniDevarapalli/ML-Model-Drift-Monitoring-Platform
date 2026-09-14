@@ -2,7 +2,7 @@
 
 Local Python project for monitoring a customer-churn classifier after a simulated deployment. The focus is **model monitoring**—data quality, statistical drift, prediction shift, and performance degradation—not winning a leaderboard.
 
-This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), **Milestone 3** (a baseline Random Forest), and **Milestone 4** (reference-data artifacts). Drift detection, production simulation, alerts, and monitoring plots are not implemented yet.
+This repository currently includes **Milestone 1** (structure and dataset download), **Milestone 2** (exploration and preprocessing), **Milestone 3** (a baseline Random Forest), **Milestone 4** (reference-data artifacts), and **Milestone 5** (controlled production-data simulation). Drift detection, alerts, and monitoring plots are not implemented yet.
 
 ## Problem statement
 
@@ -30,11 +30,13 @@ ML-Model-Drift-Monitoring-Platform/
 │   ├── data_loader.py       # download + load raw CSV
 │   ├── preprocessing.py     # cleaning, feature groups, unfitted sklearn pipeline
 │   ├── train.py             # baseline training, evaluation, persistence
-│   └── reference.py         # training-data reference artifacts for monitoring
+│   ├── reference.py         # training-data reference artifacts for monitoring
+│   └── simulation.py        # reproducible production-data scenarios
 ├── tests/
 │   ├── test_preprocessing.py
 │   ├── test_train.py
-│   └── test_reference.py
+│   ├── test_reference.py
+│   └── test_simulation.py
 ├── pytest.ini
 ├── requirements.txt
 ├── .gitignore
@@ -188,6 +190,30 @@ It creates local, reproducible artifacts under `results/reference/` (these deriv
 
 These files establish data and prediction baselines only. No drift or data-quality detection is implemented yet.
 
+## Production-data simulation (Milestone 5)
+
+Future monitoring needs controlled inputs to evaluate. The simulator samples only from the 5,634-row training/reference artifact—not the held-out test set—and never changes that artifact. Every generated batch has the same 19 semantic feature columns as the reference data and is saved locally under `results/production/` (gitignored). A fixed seed makes each experiment reproducible.
+
+Generate a scenario with:
+
+```bash
+python -m src.simulation --scenario healthy --batch-size 1000 --seed 42
+```
+
+Available scenarios are:
+
+- `healthy` — an unmodified sample from the reference distribution.
+- `numerical_drift` — shifts `MonthlyCharges` upward; configure `--monthly-charge-shift`.
+- `categorical_drift` — changes the valid `Month-to-month` contract share; configure `--month-to-month-proportion`.
+- `missing_values` — injects missing values into `MonthlyCharges` and `Contract`; configure `--missing-fraction`.
+- `invalid_values` — inserts a small number of `Satellite` internet-service values and negative monthly charges; configure `--invalid-fraction`.
+- `prediction_shift` — applies valid, churn-risk-oriented contract, service, payment, and charge changes. It changes inputs only; it does not calculate prediction drift.
+- `performance_degradation` — samples normal-looking feature rows but saves separately altered churn labels in `performance_degradation_targets.csv`; configure `--target-flip-fraction`.
+
+These scenarios represent distinct concepts. **Data drift** changes input distributions. A **data-quality failure** makes inputs incomplete or invalid. **Prediction drift** is a future measurement of changed model outputs; the `prediction_shift` scenario merely supplies inputs expected to produce it. **Performance degradation** changes the relationship between inputs and newly observed labels, so it can reduce future model performance even when feature distributions look normal.
+
+The CLI validates schema and row count after generation and prints the intended change. For example, with 200 rows and seed 42, the numerical-drift scenario changes mean `MonthlyCharges` from $64.93 in the reference to $95.86; categorical drift produces an 80% Month-to-month share; and missing-values produces 20% missingness in each selected column. These are simulation validations, not drift-detection results.
+
 ## How to run
 
 ```bash
@@ -213,4 +239,4 @@ python -m pytest
 
 ## Future improvements (not started)
 
-Production simulation, data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.
+Data-quality checks, numerical/categorical/prediction drift, performance monitoring, alerts, visualizations, and end-to-end experiments.

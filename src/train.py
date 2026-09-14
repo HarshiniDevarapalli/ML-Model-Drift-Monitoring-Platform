@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import joblib
+
+# Avoid a user-home cache dependency when this module is imported by local scripts.
+_MATPLOTLIB_CONFIG_DIR = Path(tempfile.gettempdir()) / "ml_drift_monitoring_matplotlib"
+_MATPLOTLIB_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_MATPLOTLIB_CONFIG_DIR))
 import matplotlib
 
 # Training runs non-interactively (including CI), so use a file-rendering backend.
